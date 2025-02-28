@@ -365,6 +365,9 @@ You can use these packages in your Python code when using the python_repl tool."
                                             "input": block.input
                                         })
                 
+                
+                # STREAM HAS ENDED
+
                 # Create the thinking block if we have thinking content and signature but haven't created it yet
                 if thinking_content and thinking_signature and thinking_block is None:
                     thinking_block = {

@@ -200,6 +200,8 @@ class ClaudeChat:
 The following Python packages are available in the environment:
 {packages}
 
+You can try to install any package by using `uv pip install <package_name>`.
+
 Code you provide will directly be executed and variables will persist between executions. So you can are also allowed to make partial progress on a task.
 
 You can use these packages in your Python code when using the python_repl tool."""

@@ -99,8 +99,10 @@ class ClaudeChat:
                     {"type": "text", "text": content}
                 ]
             elif isinstance(content, list):
-                # Insert thinking block at the beginning of the content list
-                content.insert(0, thinking_block)
+                # Check if the thinking block is already in the content list
+                if not any(block.get("type") == "thinking" or block.get("type") == "redacted_thinking" for block in content):
+                    # Insert thinking block at the beginning of the content list
+                    content.insert(0, thinking_block)
         
         # If content is still a string, convert it to a content block
         if isinstance(content, str):
@@ -301,23 +303,20 @@ You can use these packages in your Python code when using the python_repl tool."
                                 tool_use_blocks.append(current_tool_block)
                             current_tool_block = None
                         elif hasattr(event.content_block, 'type') and event.content_block.type == 'thinking':
-                            # Capture thinking signature from content block if not already set
-                            if not thinking_signature and hasattr(event.content_block, 'signature'):
-                                thinking_signature = event.content_block.signature
-                            
-                            # Capture thinking content if not already captured
-                            if not thinking_content and hasattr(event.content_block, 'thinking'):
-                                thinking_content = event.content_block.thinking
-                                
-                            # Create thinking block when we have both pieces
-                            if thinking_content and thinking_signature:
-                                thinking_block = {
-                                    "type": "thinking",
-                                    "thinking": thinking_content,
-                                    "signature": thinking_signature
-                                }
-                                # Save this thinking block for future messages
-                                self.last_thinking_block = thinking_block
+                            # Store the complete thinking block as is
+                            thinking_block = {
+                                "type": "thinking",
+                                "thinking": event.content_block.thinking,
+                                "signature": event.content_block.signature
+                            }
+                            self.last_thinking_block = thinking_block
+                        elif hasattr(event.content_block, 'type') and event.content_block.type == 'redacted_thinking':
+                            # Store the redacted_thinking block as is
+                            thinking_block = {
+                                "type": "redacted_thinking",
+                                "data": event.content_block.data
+                            }
+                            self.last_thinking_block = thinking_block
                     
                     # Handle Message Stop event
                     elif hasattr(event, 'type') and event.type == 'message_stop':
@@ -326,25 +325,26 @@ You can use these packages in your Python code when using the python_repl tool."
                             # Add the assistant's message to our message history
                             assistant_content = []
                             
-                            # First, find any thinking block in the message
+                            # First, find any thinking or redacted_thinking block in the message and store it directly
                             for block in event.message.content:
-                                if hasattr(block, 'type') and block.type == 'thinking':
-                                    # Update thinking content and signature if they're in the final message
-                                    if not thinking_content and hasattr(block, 'thinking'):
-                                        thinking_content = block.thinking
-                                    
-                                    if not thinking_signature and hasattr(block, 'signature'):
-                                        thinking_signature = block.signature
-                                        
-                                    # Create thinking block if we have both required parts
-                                    if thinking_content and thinking_signature:
+                                if hasattr(block, 'type'):
+                                    if block.type == 'thinking':
+                                        # Store the complete thinking block as is
                                         thinking_block = {
                                             "type": "thinking",
-                                            "thinking": thinking_content,
-                                            "signature": thinking_signature
+                                            "thinking": block.thinking,
+                                            "signature": block.signature
                                         }
                                         self.last_thinking_block = thinking_block
-                                    break
+                                        break
+                                    elif block.type == 'redacted_thinking':
+                                        # Store the redacted_thinking block as is
+                                        thinking_block = {
+                                            "type": "redacted_thinking",
+                                            "data": block.data
+                                        }
+                                        self.last_thinking_block = thinking_block
+                                        break
                             
                             # Then process all content blocks
                             for block in event.message.content:
@@ -370,7 +370,7 @@ You can use these packages in your Python code when using the python_repl tool."
                 
                 # STREAM HAS ENDED
 
-                # Create the thinking block if we have thinking content and signature but haven't created it yet
+                # If we have thinking content and signature but haven't created a thinking block yet
                 if thinking_content and thinking_signature and thinking_block is None:
                     thinking_block = {
                         "type": "thinking",
@@ -382,6 +382,10 @@ You can use these packages in your Python code when using the python_repl tool."
                 # If we have any content, add an assistant message
                 if text_content or tool_use_blocks:
                     content_blocks = []
+                    
+                    # Add thinking block if it's available
+                    if thinking_block is not None:
+                        content_blocks.append(thinking_block)
                     
                     # Add text block if we have text content
                     if text_content:
@@ -399,8 +403,8 @@ You can use these packages in your Python code when using the python_repl tool."
                             "input": block["input"]
                         })
                     
-                    # Add the assistant message with thinking block first
-                    self.add_assistant_message(content_blocks, thinking_block)
+                    # Add the assistant message (without thinking block, as we've already added it above)
+                    self.add_assistant_message(content_blocks)
                 
                 print()
                 return text_content, tool_use_blocks

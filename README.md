@@ -1,6 +1,8 @@
 # Claude Python REPL Assistant
 
-This application provides an interactive command-line interface that allows you to converse with Claude and execute Python code as needed. It features:
+<img width="892" alt="Screenshot 2025-02-27 at 10 26 20 PM" src="https://github.com/user-attachments/assets/fe87bf77-ba19-4787-a201-2487a0c9d158" />
+
+This Python script provides an interactive command-line interface that allows you to converse with Claude and execute Python code as needed. It features:
 
 - A persistent Python REPL that maintains variables and state between executions
 - Extended thinking/reasoning display with colored output 

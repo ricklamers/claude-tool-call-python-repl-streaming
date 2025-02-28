@@ -26,7 +26,7 @@ This Python script provides an interactive command-line interface that allows yo
    source .venv/bin/activate
    uv pip install anthropic
    ```
-   Note: These instructions assume you're using [uv](https://github.com/astral-sh/uv), a fast Python package installer. If you don't have uv installed, you can use `pip` instead.
+   Note: These instructions assume you're using [uv](https://github.com/astral-sh/uv), a fast Python package installer. If you don't have uv installed, go install it.
 
    Whatever packages are in your uv environment will be available to Claude.
 

@@ -75,7 +75,6 @@ class ClaudeChat:
         self.python_repl = PythonREPL()
         self.messages = []
         self.last_assistant_message = None
-        self.last_thinking_block = None
         self.output_char_limit = 4000  # Character limit for output display
         
     def add_user_message(self, content: str):
@@ -84,36 +83,6 @@ class ClaudeChat:
             "role": "user",
             "content": content
         })
-    
-    def add_assistant_message(self, content, thinking_block=None):
-        """Add an assistant message to the conversation with thinking block if provided"""
-        if thinking_block is None and self.last_thinking_block is not None:
-            thinking_block = self.last_thinking_block
-            
-        # If thinking block is provided, make sure it's the first element in content
-        if thinking_block is not None:
-            if isinstance(content, str):
-                # Convert string content to an array with thinking block first
-                content = [
-                    thinking_block,
-                    {"type": "text", "text": content}
-                ]
-            elif isinstance(content, list):
-                # Check if the thinking block is already in the content list
-                if not any(block.get("type") == "thinking" or block.get("type") == "redacted_thinking" for block in content):
-                    # Insert thinking block at the beginning of the content list
-                    content.insert(0, thinking_block)
-        
-        # If content is still a string, convert it to a content block
-        if isinstance(content, str):
-            content = [{"type": "text", "text": content}]
-            
-        message = {
-            "role": "assistant",
-            "content": content
-        }
-        self.messages.append(message)
-        self.last_assistant_message = message
     
     def add_tool_result(self, tool_use_id: str, content: Union[str, List], is_error: bool = False):
         """Add a tool result to the conversation"""
@@ -320,91 +289,33 @@ You can use these packages in your Python code when using the python_repl tool."
                     
                     # Handle Message Stop event
                     elif hasattr(event, 'type') and event.type == 'message_stop':
-                        # If we get a complete message, extract content and tool use blocks
-                        if event.message.content:
-                            # Add the assistant's message to our message history
-                            assistant_content = []
+                        # If we get a complete message, store its exact content to reuse in the next API call
+                        if hasattr(event, 'message') and hasattr(event.message, 'content'):
+                            # Create a properly formatted message to add to our conversation history
+                            assistant_message = {
+                                "role": "assistant",
+                                "content": event.message.content  # Use the exact content structure from the API
+                            }
+                            self.messages.append(assistant_message)
+                            self.last_assistant_message = assistant_message
                             
-                            # First, find any thinking or redacted_thinking block in the message and store it directly
+                            # Extract tool use blocks from the message for execution
                             for block in event.message.content:
-                                if hasattr(block, 'type'):
-                                    if block.type == 'thinking':
-                                        # Store the complete thinking block as is
-                                        thinking_block = {
-                                            "type": "thinking",
-                                            "thinking": block.thinking,
-                                            "signature": block.signature
-                                        }
-                                        self.last_thinking_block = thinking_block
-                                        break
-                                    elif block.type == 'redacted_thinking':
-                                        # Store the redacted_thinking block as is
-                                        thinking_block = {
-                                            "type": "redacted_thinking",
-                                            "data": block.data
-                                        }
-                                        self.last_thinking_block = thinking_block
-                                        break
-                            
-                            # Then process all content blocks
-                            for block in event.message.content:
-                                if hasattr(block, 'type'):
-                                    if block.type == 'text':
-                                        assistant_content.append({
-                                            "type": "text",
-                                            "text": block.text
-                                        })
-                                    elif block.type == 'tool_use' and not any(b["id"] == block.id for b in tool_use_blocks):
+                                if hasattr(block, 'type') and block.type == 'tool_use':
+                                    if not any(existing_block["id"] == block.id for existing_block in tool_use_blocks):
                                         tool_use_blocks.append({
                                             "id": block.id,
-                                            "name": block.name,
-                                            "input": block.input
-                                        })
-                                        assistant_content.append({
-                                            "type": "tool_use",
-                                            "id": block.id,
-                                            "name": block.name,
+                                            "name": block.name, 
                                             "input": block.input
                                         })
                 
                 
                 # STREAM HAS ENDED
 
-                # If we have thinking content and signature but haven't created a thinking block yet
-                if thinking_content and thinking_signature and thinking_block is None:
-                    thinking_block = {
-                        "type": "thinking",
-                        "thinking": thinking_content,
-                        "signature": thinking_signature
-                    }
-                    self.last_thinking_block = thinking_block
-                
-                # If we have any content, add an assistant message
-                if text_content or tool_use_blocks:
-                    content_blocks = []
-                    
-                    # Add thinking block if it's available
-                    if thinking_block is not None:
-                        content_blocks.append(thinking_block)
-                    
-                    # Add text block if we have text content
-                    if text_content:
-                        content_blocks.append({
-                            "type": "text",
-                            "text": text_content
-                        })
-                        
-                    # Add tool use blocks
-                    for block in tool_use_blocks:
-                        content_blocks.append({
-                            "type": "tool_use",
-                            "id": block["id"],
-                            "name": block["name"],
-                            "input": block["input"]
-                        })
-                    
-                    # Add the assistant message (without thinking block, as we've already added it above)
-                    self.add_assistant_message(content_blocks)
+                # Set a default return value in case the stream didn't provide anything
+                if not text_content and not tool_use_blocks:
+                    print()
+                    return None, []
                 
                 print()
                 return text_content, tool_use_blocks

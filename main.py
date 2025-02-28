@@ -200,7 +200,7 @@ class ClaudeChat:
 The following Python packages are available in the environment:
 {packages}
 
-You can try to install any package by using `uv pip install <package_name>`.
+You can try to install any package by using `subprocess.run(["uv", "pip", "install", "package_name"])`, note we use uv to install packages.
 
 Code you provide will directly be executed and variables will persist between executions. So you can are also allowed to make partial progress on a task.
 
